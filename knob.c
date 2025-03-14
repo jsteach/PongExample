@@ -71,8 +71,16 @@ defer:
     knob_cmd_free(cmd);
     return result;
 }
+#define LAB_NAME "pong"
+#define USE_C
+#ifdef USE_C
+#define EXT ".c"
+#define COMP "c"
+#else
+#define EXT ".cpp"
+#define COMP "++"
+#endif
 
-#define LAB_NAME "entrypoint"
 bool build_game(void)
 {
     bool result = true;
@@ -85,16 +93,25 @@ bool build_game(void)
     if (!knob_mkdir_if_not_exists("./build")) {
         knob_return_defer(false);
     }
+    knob_cmd_append(&cmd, ZIG_PATH,"c"COMP);
+    knob_cmd_append(&cmd, "--debug", "-fno-sanitize=undefined","-fno-omit-frame-pointer");
+    knob_cmd_append(&cmd, "-I"RAYLIB_PATH"/src");
+    knob_cmd_append(&cmd, "-c",knob_temp_sprintf("./src/%s%s",LAB_NAME,EXT));
+    char* out_file = knob_temp_sprintf("./build/%s.o",LAB_NAME);
+    knob_cmd_append(&cmd, "-o", out_file);
+
+    if (!knob_cmd_run_sync(cmd)) knob_return_defer(false);
+    cmd.count = 0;
     knob_cmd_append(&cmd, ZIG_PATH,"c++");
     knob_cmd_append(&cmd, "-static");
     knob_cmd_append(&cmd, "--debug", "-std=c++11", "-fno-sanitize=undefined","-fno-omit-frame-pointer");
     knob_cmd_append(&cmd, "-I"RAYLIB_PATH"/src");
     build_raylib(&cmd);
-    knob_cmd_append(&cmd,knob_temp_sprintf("./src/%s.cpp",LAB_NAME),"-o","./Deployment/game.exe");
+    knob_cmd_append(&cmd,out_file,"-o","./Deployment/game.exe");
     knob_cmd_append(&cmd, "-lkernel32","-lwinmm", "-lgdi32","-lopengl32");
     knob_cmd_append(&cmd,"./src/main.cpp");
     if (!knob_cmd_run_sync(cmd)) knob_return_defer(false);
-    
+
 defer:
     knob_cmd_free(cmd);
     knob_da_free(procs);
